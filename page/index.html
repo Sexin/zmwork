@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+    <style>
+        html, body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+        }
+        #app {
+            width: 100%;
+            height: 100%;
+        }
+        .origin {
+            width: 400px;
+            height: 400px;
+            text-align: center;
+            line-height: 400px;
+            overflow: auto;
+        }
+        .origin img {
+            width: 100%;
+            height: 100%;
+        }
+        #annotate {
+            position: fixed;
+            top: 0px;
+            left: 0px;
+            width: 100%;
+            height: 100%;
+            display: none;
+            background-color: rgba(0, 0, 0, 0.3);
+        }
+        #annotate .anno-image {
+            flex: 1;
+            position: relative;
+            overflow: auto;
+        }
+        #annotate .anno-image img {
+            width: 100%;
+            height: 100%;
+        }
+        #annotate .anno-options {
+            width: 200px;
+        }
+        #annotate .anno-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 999;
+        }
+        #annotate .anno-image .annotate-box {
+            position: absolute;
+        }
+        #annotate .anno-image .annotate-box-user {
+            position: absolute;
+        }
+        #annotate .anno-image .annotate-box.anno-horizontalline {
+            background-color: #000;
+            border: 0px;
+        }
+        #annotate .anno-image .annotate-box.anno-errororeorrect {
+            width: 50px;
+            height: 50px;
+        }
+    </style>
+    <script src="../js/jquery.min.js"></script>
+    <script src="../js/annotate.js"></script>
+    <script>
+        $(function() {
+        })
+        
+        function fnClick(obj) {
+            const path = $(obj).data('src');
+            console.log(path)
+            const an = new Annotate({
+                el: '#annotate',
+                imgOrigin: path,
+                user: 'renxin'
+            })
+            an.init();
+        }
+
+        function fnSaveCoordinate(e) {
+            console.log(e)
+        }
+    </script>
+</head>
+<body>
+    <div id="app">
+        <div class='origin'>
+            <img 
+                src="../img/img2.jpg" 
+                data-src='../img/img2.jpg' 
+                alt="" 
+                srcset="" 
+                class='' 
+                onClick='fnClick(this)'
+            />
+        </div>
+    </div>
+    <div id='annotate'>
+        
+    </div>
+</body>
+<script>
+    /**
+    
+        const an = new Annotate({
+            el: '#annotate',
+            imgOrigin: '../img/img2.jpg'
+        })
+        an.init();
+    */
+</script>
+</html>
