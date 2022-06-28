@@ -71,6 +71,7 @@
     flex-wrap: wrap;
     align-content: flex-start;
     justify-content: space-between;
+    overflow: auto;
 }
 #annotate .anno-options button {
     border: 0px;
