@@ -27,48 +27,8 @@
             width: 100%;
             height: 100%;
         }
-        #annotate {
-            position: fixed;
-            top: 0px;
-            left: 0px;
-            width: 100%;
-            height: 100%;
-            display: none;
-            background-color: rgba(0, 0, 0, 0.3);
-        }
-        #annotate .anno-image {
-            flex: 1;
-            position: relative;
-            overflow: auto;
-        }
-        #annotate .anno-image img {
-            width: 100%;
-            height: 100%;
-        }
-        #annotate .anno-options {
-            width: 200px;
-        }
-        #annotate .anno-canvas {
-            position: absolute;
-            top: 0;
-            left: 0;
-            z-index: 999;
-        }
-        #annotate .anno-image .annotate-box {
-            position: absolute;
-        }
-        #annotate .anno-image .annotate-box-user {
-            position: absolute;
-        }
-        #annotate .anno-image .annotate-box.anno-horizontalline {
-            background-color: #000;
-            border: 0px;
-        }
-        #annotate .anno-image .annotate-box.anno-errororeorrect {
-            width: 50px;
-            height: 50px;
-        }
     </style>
+    <link rel="stylesheet" href="../css/annotate.css">
     <script src="../js/jquery.min.js"></script>
     <script src="../js/annotate.js"></script>
     <script>
@@ -77,11 +37,63 @@
         
         function fnClick(obj) {
             const path = $(obj).data('src');
-            console.log(path)
+            /**
+             * 创建一个批注则使用下列方式
+             * 保存方法目前还没有实现
+             * 保存方法：Annotate.prototype.save
+             * 
+             * */
             const an = new Annotate({
-                el: '#annotate',
-                imgOrigin: path,
-                user: 'renxin'
+                el: '#annotate', // 渲染节点
+                imgOrigin: path, // 图片地址
+                user: 'renxin', // 用户
+                type: 1, // 模式 1 编辑 2 查看
+                isShowUser: true, // 初始化时是否显示过往批注数据
+                data: [
+                    {
+                        startX: 20, // 开始坐标X
+                        startY: 20, // 开始坐标Y
+                        endX: 200, // 结束坐标X
+                        endY: 200, // 结束坐标Y
+                        element: 'annotate-box0', // 节点class_name 
+                        optionType: 'horizontalline', // 批注操作类型
+                        color: 'red', // 颜色，暂时无效
+                        user: 'admin', // 用户
+                        data: '' // 批注操作类型为CHAR时有效
+                    },
+                    {
+                        startX: 50,
+                        startY: 50,
+                        endX: 200,
+                        endY: 200,
+                        color: 'green',
+                        element: 'annotate-box1',
+                        optionType: 'rectangle',
+                        user: 'admin' 
+                    },
+                    {
+                        startX: 350,
+                        startY: 350,
+                        endX: 400,
+                        endY: 400,
+                        color: 'green',
+                        element: 'annotate-box2',
+                        optionType: 'char',
+                        user: 'admin',
+                        data: '1'
+                    },
+                    {
+                        startX: 400,
+                        startY: 400,
+                        endX: 500,
+                        endY: 500,
+                        color: 'green',
+                        element: 'annotate-box3',
+                        optionType: 'char',
+                        user: '张三',
+                        data: '9'
+                    }
+                ]
             })
             an.init();
         }
@@ -95,8 +107,8 @@
     <div id="app">
         <div class='origin'>
             <img 
-                src="../img/img2.jpg" 
-                data-src='../img/img2.jpg' 
+                src="../img/pic.jpg" 
+                data-src='../img/pic.jpg' 
                 alt="" 
                 srcset="" 
                 class='' 

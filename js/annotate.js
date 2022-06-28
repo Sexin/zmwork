@@ -5,6 +5,9 @@
  *          el : 节点    
  *      }
  */
+/**
+ * TODO 
+ */
 // 横线
 const HORIZONTALLINE = 'horizontalline'; 
 // 矩形
@@ -15,19 +18,26 @@ const CIRCLE = 'circle';
 const ERROR = 'error';
 // 正确图片
 const CORRECT = 'correct';
+// 数字和错误正确 number and error correct
+const CHAR = 'char';
+// 颜色池
+const COLORS = ['', 'green', 'orange', 'purple', 'blue', 'pink', 'pink'];
 
 const Annotate = function(options) {
+    this.type = options.type // 1 编辑 2 查看
+    this.isShowUser = options.isShowUser // 是否展示用户的批注
     this.user = options.user ? options.user : 'admin';
     this.el = document.querySelector(options.el);
     this.el.style.display = 'flex';
     this.imgOrigin = options.imgOrigin; // 目标源图像地址
     this.coordinate = []; // 记录坐标
+    this.temp_coordinate = []; // 记录临时坐标
     this.optionType = HORIZONTALLINE; // 水平线
     // 画图样式
     this.optionStyle = {
         width: '1px',
         height: '1px',
-        color: '#000'
+        color: 'red'
     }
     // 当前坐标
     this.currentCoordinate = { 
@@ -40,6 +50,12 @@ const Annotate = function(options) {
     this.currentAnnotateBox = null;
     // 当前缩放的大小 百分比
     this.currentScale = 100;
+    // 数值和正确错误
+    this.charVal = '';
+    // 当前用户
+    this.users = {};
+    // 当前数据
+    this.initData = options.data && options.data.length > 0 ? options.data : [];
     /**
      * canvas 相关
      */
@@ -55,96 +71,128 @@ const Annotate = function(options) {
 
 // 初始化
 Annotate.prototype.init = function() {
-    const dom = this.createDom(this.imgOrigin);
+    const dom = this.createDom(this.imgOrigin, this.type);
     this.compileDom(dom);
     // 设置画布的宽和高
     this.setCanvasWidthAndHeight();
     // this.ctx = canvas.getContext('2d');
     const _this = this;
     // 添加画布 画布只是用来划定范围和操作，并不会使用canvas
-    const canvas = this.getCanvas();
-    canvas.addEventListener('mousemove', this.draw.bind(this), false);
-    canvas.addEventListener('mousedown', this.down.bind(this), true);
-    canvas.addEventListener('mouseup', this.up.bind(this), false);
-
-    // 保存btn
-    const btnSave = this.getSaveBtn();
-    btnSave.addEventListener('click', function() {
-        _this.save();
-    })
-    // 切换颜色
-    const btnColor = this.getColorBtn();
-    btnColor.forEach(function(item) {
-        item.addEventListener('click', function() {
-            _this.changeOptionStyle(this.dataset.color, 1);
+    if(this.type == 1) {
+        const canvas = this.getCanvas();
+        canvas.addEventListener('mousemove', this.draw.bind(this), false);
+        canvas.addEventListener('mousedown', this.down.bind(this), true);
+        canvas.addEventListener('mouseup', this.up.bind(this), false);
+        // 保存btn
+        const btnSave = this.getSaveBtn();
+        btnSave.addEventListener('click', function() {
+            _this.save();
         })
-    })
-
-    // 获得操作按钮
-    const optionsBtn = this.getOptionTypeBtn();
-    optionsBtn.forEach(function(item) {
-        item.addEventListener('click', function() {
-            _this.changeOptionType(this.dataset.optiontype)
-        })
-    })
-
-    // 获取撤销按钮
-    const revokeBtn = this.getRevokeBtn();
-    revokeBtn.addEventListener('click', function() {
-        if(_this.coordinate.length > 0) {
-            const data = _this.coordinate.pop();
-            const el = _this.getImageBox();
-            const element = el.querySelectorAll('.' + data.element);
-            element.forEach(function(item) {
-                el.removeChild(item);
+        // 切换颜色
+        const btnColor = this.getColorBtn();
+        btnColor.forEach(function(item) {
+            item.addEventListener('click', function() {
+                _this.changeOptionStyle(this.dataset.color, 1);
             })
-        }
-    })
-
-    // 获取缩放按钮
-    const scaleBtn = this.getScaleBtn();
-    let flag = true;
-    scaleBtn.addEventListener('click', function() {
-        // 缩放了重新设置画布的宽和高
-        if(flag) {
-            _this.currentScale = 80;
-            _this.changeImageScale(80);
-            _this.handleCoordinateByScale(80)
-            flag = false
-        } else {
-            _this.currentScale = 100;
-            _this.changeImageScale(100);
-            _this.handleCoordinateByScale(100);
-            flag = true
-        }
-        _this.setCanvasWidthAndHeight();
-    })
+        })
+    
+        // 获得操作按钮
+        const optionsBtn = this.getOptionTypeBtn();
+        optionsBtn.forEach(function(item) {
+            item.addEventListener('click', function() {
+                const siblings = [...item.parentNode.children];
+                siblings.forEach(function(element) {
+                    element.classList.remove('anno-active')
+                })
+                item.classList.add('anno-active');
+                if(this.dataset.optiontype == CHAR) {
+                    _this.changeNumberAndErrorCorrect(this.dataset.number)
+                }
+                _this.changeOptionType(this.dataset.optiontype)
+            })
+        })
+    
+        // 获取撤销按钮
+        const revokeBtn = this.getRevokeBtn();
+        revokeBtn.addEventListener('click', function() {
+            if(_this.temp_coordinate.length > 0) {
+                const data = _this.temp_coordinate.pop();
+                const el = _this.getImageBox();
+                const element = el.querySelectorAll('.' + data.element);
+                element.forEach(function(item) {
+                    el.removeChild(item);
+                })
+            }
+        })
+    
+        // 获取缩放按钮
+        const scaleBtn = this.getScaleBtn();
+        let flag = true;
+        scaleBtn.addEventListener('click', function() {
+            // 缩放了重新设置画布的宽和高
+            if(flag) {
+                _this.currentScale = 80;
+                _this.changeImageScale(80);
+                _this.handleCoordinateByScale(80)
+                flag = false
+            } else {
+                _this.currentScale = 100;
+                _this.changeImageScale(100);
+                _this.handleCoordinateByScale(100);
+                flag = true
+            }
+            _this.setCanvasWidthAndHeight();
+        })
+    }
     // 若数据库有值，先初始化值
-    this.handleDataFromDataBase();
+    this.handleDataFromDataBase(this.initData);
 }
 
 // 创建dom
-Annotate.prototype.createDom = function(path) {
-    const dom = `
+Annotate.prototype.createDom = function(path, type) {
+    let dom = `
         <div class='anno-image'>
             <img src="${path}" alt="" srcset="">
             <canvas id="anno-canvas" class='anno-canvas'>
             </canvas>
         </div>
+    `;
+    dom += `
         <div class='anno-options'>
-            <button class='anno-optiontype' data-optiontype='${HORIZONTALLINE}'>横线</button>
+    `;
+    if(type == 1) {
+        dom += `
+            <button class='anno-optiontype anno-active' data-optiontype='${HORIZONTALLINE}'>横线</button>
             <button class='anno-optiontype' data-optiontype='${RECTANGLE}'>矩形</button>
             <button class='anno-optiontype' data-optiontype='${CIRCLE}'>圆形</button>
-            <button class='anno-optiontype' data-optiontype='${ERROR}'>错误</button>
-            <button class='anno-optiontype' data-optiontype='${CORRECT}'>正确</button>
-            <button class='anno-color' data-color='red'>红色</button>
-            <button class='anno-color' data-color='black'>黑色</button>
-            <button class='anno-color' data-color='green'>绿色</button>
+            <button class='anno-optiontype' data-optiontype='${CHAR}' data-number='0'>0</button>
+            <button class='anno-optiontype' data-optiontype='${CHAR}' data-number='1'>1</button>
+            <button class='anno-optiontype' data-optiontype='${CHAR}' data-number='2'>2</button>
+            <button class='anno-optiontype' data-optiontype='${CHAR}' data-number='3'>3</button>
+            <button class='anno-optiontype' data-optiontype='${CHAR}' data-number='4'>4</button>
+            <button class='anno-optiontype' data-optiontype='${CHAR}' data-number='5'>5</button>
+            <button class='anno-optiontype' data-optiontype='${CHAR}' data-number='6'>6</button>
+            <button class='anno-optiontype' data-optiontype='${CHAR}' data-number='7'>7</button>
+            <button class='anno-optiontype' data-optiontype='${CHAR}' data-number='8'>8</button>
+            <button class='anno-optiontype' data-optiontype='${CHAR}' data-number='9'>9</button>
+            <button class='anno-optiontype' data-optiontype='${CHAR}' data-number='&#10003'>√</button>
+            <button class='anno-optiontype' data-optiontype='${CHAR}' data-number='&#10005'>×</button>
             <button class='anno-revoke'>撤销</button>
             <button class='anno-scale'>缩放</button>
             <button class='anno-save'>保存</button>
+        `;
+    }
+    dom += `
+        <div class='anno-users'>
+            <div class='anno-user-box'>
+                <div class='anno-user-flag'>
+                    <div></div>
+                </div>
+                <div class='anno-user-name'>张三</div>
+            </div>
         </div>
     `;
+    dom += '</div>'
     return dom;
 }
 
@@ -237,7 +285,8 @@ Annotate.prototype.down = function(event) {
             style, 
             this.user,
             event.offsetX,
-            event.offsetY
+            event.offsetY,
+            this.charVal
         );
         el.appendChild(dom);
         this.currentAnnotateBox = el.querySelector('.' + className);
@@ -257,23 +306,24 @@ Annotate.prototype.up = function(event) {
         optionType: this.optionType,
         element: this.currentAnnotateBox.dataset.className,
         user: this.user,
-        color: this.optionStyle.color
+        color: this.optionStyle.color,
+        data: this.optionType == CHAR ? this.charVal : ""
     }
     // 给批注标明作者
-    const dom = this.createAnnotateUser(
-        this.optionType,
-        this.user,
-        this.currentAnnotateBox.dataset.className,
-        this.optionStyle.color,
-        this.currentCoordinate.startX,
-        this.currentCoordinate.startY,
-        this.currentCoordinate.endX,
-        this.currentCoordinate.endY
-    );
-    const el = this.getImageBox();
-    console.log(dom)
-    el.appendChild(dom)
-    this.coordinate.push(data);
+    // const dom = this.createAnnotateUser(
+    //     this.optionType,
+    //     this.user,
+    //     this.currentAnnotateBox.dataset.className,
+    //     this.optionStyle.color,
+    //     this.currentCoordinate.startX,
+    //     this.currentCoordinate.startY,
+    //     this.currentCoordinate.endX,
+    //     this.currentCoordinate.endY
+    // );
+    // const el = this.getImageBox();
+    // console.log(dom)
+    // el.appendChild(dom)
+    this.temp_coordinate.push(data)
     this.currentCoordinate = {
         startX: 0,
         startY: 0,
@@ -321,7 +371,8 @@ Annotate.prototype.createAnnotateBox = function(
     style, 
     user,
     x,
-    y
+    y,
+    number
 ) {
     let dom = ''
     switch(optionType) {
@@ -339,6 +390,9 @@ Annotate.prototype.createAnnotateBox = function(
             return dom;
         case CORRECT: 
             dom = this.createErrorOrCorrectBox(optionStyle, className, style, user, x, y, 0);
+            return dom;
+        case CHAR:
+            dom = this.createNumberAndErrorCorrectBox(optionStyle, number, className, style, user, x, y);
             return dom;
         default: 
             return '';
@@ -426,11 +480,12 @@ Annotate.prototype.createHorizontalLineBox = function(
     style, 
     user
 ) {
-    style += 'width:' + options.width + ';height:' + options.height + ';';
+    style += 'width:' + options.width + ';height:3px;';
     style += 'background-color:' + options.color + ';'
     const dom = document.createElement('div')
     dom.style = style;
     dom.classList.add('annotate-box');
+    dom.classList.add('annotate-box-' + user);
     dom.classList.add(className);
     dom.classList.add('anno-horizontalline');
     dom.dataset.className = className;
@@ -446,10 +501,11 @@ Annotate.prototype.createRectangleBox = function(
     user
 ) {
     style += 'width:' + options.width + ';height:' + options.height + ';';
-    style += 'border: 1px solid ' + options.color + ';';
+    style += 'border: 3px solid ' + options.color + ';';
     const dom = document.createElement('div')
     dom.style = style;
     dom.classList.add('annotate-box');
+    dom.classList.add('annotate-box-' + user);
     dom.classList.add(className);
     dom.classList.add('anno-rectangle');
     dom.dataset.className = className;
@@ -465,10 +521,11 @@ Annotate.prototype.createCircleBox = function(
     user
 ) {
     style += 'width:' + options.width + ';height:' + options.height + ';';
-    style += 'border: 1px solid ' + options.color + ';border-radius:50%';
+    style += 'border: 3px solid ' + options.color + ';border-radius:50%';
     const dom = document.createElement('div')
     dom.style = style;
     dom.classList.add('annotate-box');
+    dom.classList.add('annotate-box-' + user);
     dom.classList.add(className);
     dom.classList.add('anno-rectangle');
     dom.dataset.className = className;
@@ -491,6 +548,7 @@ Annotate.prototype.createErrorOrCorrectBox = function(
     dom.style.top = y - 25 > 0 ? y - 25 + 'px' : 0 + 'px';
     dom.style.left = x - 25 > 0 ? x - 25 + 'px' : 0 + 'px';
     dom.classList.add('annotate-box');
+    dom.classList.add('annotate-box-' + user);
     dom.classList.add(className);
     dom.classList.add('anno-errororeorrect');
     dom.dataset.className = className;
@@ -501,6 +559,34 @@ Annotate.prototype.createErrorOrCorrectBox = function(
     img.style.height = '50px';
     dom.appendChild(img)
     return dom; 
+}
+
+// 生成数字和对错
+Annotate.prototype.createNumberAndErrorCorrectBox = function(
+    options,
+    data,
+    className, 
+    style, 
+    user,
+    x,
+    y
+) {
+    const dom = document.createElement('div')
+    dom.style = style;
+    dom.style.top = y - 25 > 0 ? y - 25 + 'px' : 0 + 'px';
+    dom.style.left = x - 25 > 0 ? x - 25 + 'px' : 0 + 'px';
+    dom.style.fontSize = '40px';
+    dom.style.textAlign = 'center';
+    dom.style.lineHeight = '50px';
+    dom.style.color = options.color;
+    dom.classList.add('annotate-box');
+    dom.classList.add('annotate-box-' + user);
+    dom.classList.add(className);
+    dom.classList.add('anno-errororeorrect');
+    dom.dataset.className = className;
+    dom.innerText = data;
+    dom.setAttribute('title', user)
+    return dom;
 }
 
 // 生成批注作者
@@ -516,7 +602,6 @@ Annotate.prototype.createAnnotateUser = function(
     endY
 ) {
     let dom = '';
-    console.log(optionType, ERROR)
     switch(optionType) {
         case HORIZONTALLINE: 
             dom = this.createAnnotateUserBox(
@@ -599,7 +684,10 @@ Annotate.prototype.createAnnotateUserBox = function(
 
 // 保存
 Annotate.prototype.save = function() {
-    console.log(this.coordinate);
+    let temp = [];
+    temp = this.coordinate.concat(...this.temp_coordinate)
+    // 将temp数据传到后台
+    console.log(temp);
     this.clear();
 }
 
@@ -612,6 +700,11 @@ Annotate.prototype.clear = function() {
 // 切换批注类型
 Annotate.prototype.changeOptionType = function(val) {
     this.optionType = val
+}
+
+// 切换数字和错误正确
+Annotate.prototype.changeNumberAndErrorCorrect = function(val) {
+    this.charVal = val
 }
 
 // 切换样式
@@ -636,7 +729,50 @@ Annotate.prototype.changeImageScale = function(val) {
 Annotate.prototype.handleCoordinateByScale = function(val) {
     const _this = this;
     this.coordinate.forEach(function(item) {
-        console.log(item)
+        const el = _this.el.querySelectorAll('.' + item.element);
+        el.forEach(function(element) {
+            // 判断是否是作者名称
+            if(element.classList.value.indexOf('annotate-box-user') > -1) {
+                // 处理批注作者名称缩放
+                if(
+                    item.optionType == RECTANGLE
+                    || item.optionType == CIRCLE
+                ) {
+                    element.style.top = (item.endY * (val / 100)) + (5 * (val / 100)) + 'px';
+                    element.style.left = item.endX * (val / 100) + 'px'
+                } else if(
+                    item.optionType == CHAR
+                ) {
+                    // 处理错误和正确图片批注作者缩放的时候
+                    element.style.top = (item.startY * (val / 100)) + (25 * (val / 100)) + 'px';  
+                    element.style.left = (item.startX * (val / 100)) + (25 * (val / 100)) + 'px';
+                } else  {
+                    element.style.top = (item.startY * (val / 100)) + (5 * (val / 100)) + 'px';
+                    element.style.left = item.endX * (val / 100) + 'px' 
+                }
+            } else {
+                element.style.width = (item.endX - item.startX) * (val / 100) + 'px';
+                element.style.top = item.startY * (val / 100) + 'px';
+                element.style.left = item.startX * (val / 100) + 'px';
+                if(
+                    item.optionType == RECTANGLE
+                    || item.optionType == CIRCLE
+                ) {
+                    element.style.height = (item.endY - item.startY) * (val / 100) + 'px'
+                } else if(
+                    item.optionType == CHAR
+                ) {
+                    element.style.width = 50 * (val / 100) + 'px'
+                    element.style.height = 50 * (val / 100) + 'px';
+                    element.style.fontSize = 40 * (val / 100) + 'px';
+                    element.style.top = item.startY - 25 > 0 ? (item.startY * (val / 100)) - (25 * (val / 100))  + 'px' : 0;
+                    element.style.left = item.startX - 25 > 0 ? (item.startX * (val / 100)) - (25 * (val / 100))  + 'px' : 0;
+                }
+                
+            }
+        })
+    })
+    this.temp_coordinate.forEach(function(item) {
         const el = _this.el.querySelectorAll('.' + item.element);
         el.forEach(function(element) {
             // 判断是否是作者名称
@@ -669,17 +805,13 @@ Annotate.prototype.handleCoordinateByScale = function(val) {
                 ) {
                     element.style.height = (item.endY - item.startY) * (val / 100) + 'px'
                 } else if(
-                    item.optionType == ERROR
-                    || item.optionType == CORRECT
+                    item.optionType == CHAR
                 ) {
-                    // 处理错误和正确图片缩放的时候
-                    element.style.width = 50 * (val / 100) + 'px'
-                    element.style.height = 50 * (val / 100) + 'px'
+                    element.style.width = 50 * (val / 100) + 'px';
+                    element.style.height = 50 * (val / 100) + 'px';
+                    element.style.fontSize = 40 * (val / 100) + 'px';
                     element.style.top = item.startY - 25 > 0 ? (item.startY * (val / 100)) - (25 * (val / 100))  + 'px' : 0;
                     element.style.left = item.startX - 25 > 0 ? (item.startX * (val / 100)) - (25 * (val / 100))  + 'px' : 0;
-                    const img = _this.el.querySelector('.' + item.element + ' img');
-                    img.style.width = 50 * (val / 100) + 'px';
-                    img.style.height = 50 * (val / 100) + 'px';
                 }
                 
             }
@@ -688,33 +820,15 @@ Annotate.prototype.handleCoordinateByScale = function(val) {
 }
 
 // 处理从数据库获取的数据
-Annotate.prototype.handleDataFromDataBase = function() {
-    const data = [
-        {
-            startX: 20,
-            startY: 20,
-            endX: 200,
-            endY: 200,
-            element: 'annotate-box0',
-            optionType: HORIZONTALLINE,
-            color: 'red',
-            user: 'admin'
-        },
-        {
-            startX: 50,
-            startY: 50,
-            endX: 200,
-            endY: 200,
-            color: 'green',
-            element: 'annotate-box1',
-            optionType: RECTANGLE,
-            user: 'admin' 
-        }
-    ];
+Annotate.prototype.handleDataFromDataBase = function(data) {
     // 赋值
     this.coordinate = data;
     const _this = this;
+    let temp = 0;
+    let userFlagDom = '';
+    let user = [];
     data.forEach(function(item) {
+        
         const style = 'top:' + item.startY + 'px;left:' + item.startX + 'px;';
         const el = _this.getImageBox();
         // TODO 为了分辨是哪个用户加的，后续加上用户账号或id
@@ -722,15 +836,26 @@ Annotate.prototype.handleDataFromDataBase = function() {
         const className = item.element;
         // 处理颜色
         const options = JSON.parse(JSON.stringify(_this.optionStyle));
+        let num = user.indexOf(item.user);
+        if(num < 0) {
+            user.push(item.user);
+            temp ++;
+        }
         if(item.color != '') {
-            options.color = item.color
+            options.color = temp < 5 ? COLORS[temp] : ranColor();
+        }
+        if(num < 0) {
+            userFlagDom += _this.createAnnotateUserFlag(options.color, item.user);
         }
         const dom = _this.createAnnotateBox(
             options, 
             item.optionType, 
             className, 
             style, 
-            item.user
+            item.user,
+            item.startX,
+            item.startY,
+            item.data
         );
         el.appendChild(dom);
         const box = el.querySelector('.' + className)
@@ -742,22 +867,72 @@ Annotate.prototype.handleDataFromDataBase = function() {
             item.endX,
             item.endY
         )
-        const userDom = _this.createAnnotateUser(
-            item.optionType,
-            item.user,
-            className,
-            options.color,
-            item.startX,
-            item.startY,
-            item.endX,
-            item.endY
-        );
-        el.appendChild(userDom);
+        // const userDom = _this.createAnnotateUser(
+        //     item.optionType,
+        //     item.user,
+        //     className,
+        //     options.color,
+        //     item.startX,
+        //     item.startY,
+        //     item.endX,
+        //     item.endY,
+        //     item.data ? item.data : ''
+        // );
+        // el.appendChild(userDom);
     })
+    _this.el.querySelector('.anno-users').innerHTML = userFlagDom;
+    _this.el.querySelectorAll('.anno-user-box').forEach(function(item) {
+        item.addEventListener('click', function() {
+            _this.el.querySelectorAll('.annotate-box-' + item.dataset.name).forEach(function(item2) {
+                if(item2.classList.contains('anno-hide')) {
+                    item2.classList.add('anno-show');
+                    item2.classList.remove('anno-hide');
+                } else {
+                    item2.classList.remove('anno-show');
+                    item2.classList.add('anno-hide');
+                }
+            });
+        })
+    })
+    if(!_this.isShowUser) {
+        _this.el.querySelectorAll('.anno-user-box').forEach(function(item) {
+            _this.el.querySelectorAll('.annotate-box-' + item.dataset.name).forEach(function(item2) {
+                item2.classList.add('anno-hide'); 
+            });
+        })
+    }
+}
+
+// 生成右侧作者的标识
+Annotate.prototype.createAnnotateUserFlag = function(
+    color,
+    name,
+    id
+) {
+    const dom = `
+        <div class='anno-user-box' data-name='${name}'>
+            <div class='anno-user-flag'>
+                <div style='background-color: ${color}'></div>
+            </div>
+            <div class='anno-user-name'>${name}</div>
+        </div>
+    `;
+    return dom;
 }
 
 // 减去缩放的数值
 function fnMinusNumByScale(num, scale) {
     return num / (scale / 100);
+}
+
+// 生成随机色
+function ranColor() {
+    var str = '0123456789abcdef';
+    var bgColor = '#';
+    for (var i = 0; i < 6; i++) {
+        var idx = parseInt(Math.random() * str.length);
+        bgColor += str[idx];
+    }
+    return bgColor;
 }
 
