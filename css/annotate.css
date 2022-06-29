@@ -92,3 +92,24 @@
 #annotate .anno-options .anno-users {
     width: 100%;
 }
+
+#annotate .anno-scale-btngroup {
+    position: fixed;
+    bottom: 0;
+    right: 0;   
+    width: 500px;
+    background-color: #aaaa;
+    z-index: 999999;
+}
+#annotate .anno-scale-btngroup .anno-scale-btn-box {
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+    flex-wrap: wrap;
+}
+#annotate .anno-scale-btngroup button {
+    width: 16%;
+}
+#annotate .anno-scale-btngroup div {
+    width: 16%;
+}

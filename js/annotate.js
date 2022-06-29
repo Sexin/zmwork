@@ -33,6 +33,8 @@ const Annotate = function(options) {
     this.coordinate = []; // 记录坐标
     this.temp_coordinate = []; // 记录临时坐标
     this.optionType = HORIZONTALLINE; // 水平线
+    this.currentWidth = 0;
+    this.currentHeight = 0;
     // 画图样式
     this.optionStyle = {
         width: '1px',
@@ -78,8 +80,11 @@ Annotate.prototype.init = function() {
     // this.ctx = canvas.getContext('2d');
     const _this = this;
     // 添加画布 画布只是用来划定范围和操作，并不会使用canvas
+    const canvas = this.getCanvas();
+    const canvasWH = this.getCanvasWidthAndHeight();
+    this.currentWidth = canvasWH.width;
+    this.currentHeight = canvasWH.height;
     if(this.type == 1) {
-        const canvas = this.getCanvas();
         canvas.addEventListener('mousemove', this.draw.bind(this), false);
         canvas.addEventListener('mousedown', this.down.bind(this), true);
         canvas.addEventListener('mouseup', this.up.bind(this), false);
@@ -127,23 +132,36 @@ Annotate.prototype.init = function() {
     
         // 获取缩放按钮
         const scaleBtn = this.getScaleBtn();
-        let flag = true;
         scaleBtn.addEventListener('click', function() {
-            // 缩放了重新设置画布的宽和高
-            if(flag) {
-                _this.currentScale = 80;
-                _this.changeImageScale(80);
-                _this.handleCoordinateByScale(80)
-                flag = false
+            const classList = _this.el.querySelector('.anno-scale-btngroup').classList
+            if(classList.contains('anno-hide')) {
+                _this.el.querySelector('.anno-scale-btngroup').style.display = 'flex';
+                classList.add('anno-show');
+                classList.remove('anno-hide');
             } else {
-                _this.currentScale = 100;
-                _this.changeImageScale(100);
-                _this.handleCoordinateByScale(100);
-                flag = true
+                _this.el.querySelector('.anno-scale-btngroup').style.display = 'none';
+                classList.add('anno-hide');
+                classList.remove('anno-show');
             }
-            _this.setCanvasWidthAndHeight();
+        })
+        // 缩放不同比例的按钮点击事件
+        const scaleBtnGroup = this.getScaleBtnGroup();
+        scaleBtnGroup.forEach(function(item) {
+            item.addEventListener('click', function() {
+                const siblings = [...item.parentNode.children];
+                siblings.forEach(function(element) {
+                    element.classList.remove('anno-active')
+                })
+                item.classList.add('anno-active');
+                const val = item.dataset.scale;
+                _this.changeImageScale(val);
+                _this.handleCoordinateByScale(val)
+                // 缩放了重新设置画布的宽和高
+                _this.setCanvasWidthAndHeight();
+            })
         })
     }
+
     // 若数据库有值，先初始化值
     this.handleDataFromDataBase(this.initData);
 }
@@ -180,6 +198,22 @@ Annotate.prototype.createDom = function(path, type) {
             <button class='anno-revoke'>撤销</button>
             <button class='anno-scale'>缩放</button>
             <button class='anno-save'>保存</button>
+            <div class='anno-scale-btngroup anno-hide'>
+                <div class='anno-scale-btn-box'>
+                    <button class='anno-scale-btn' data-scale='50'>50%</button>
+                    <button class='anno-scale-btn' data-scale='60'>60%</button>
+                    <button class='anno-scale-btn' data-scale='70'>70%</button>
+                    <button class='anno-scale-btn' data-scale='80'>80%</button>
+                    <button class='anno-scale-btn' data-scale='90'>90%</button>
+                    <button class='anno-scale-btn anno-active' data-scale='100'>100%</button>
+                    <button class='anno-scale-btn' data-scale='110'>110%</button>
+                    <button class='anno-scale-btn' data-scale='120'>120%</button>
+                    <button class='anno-scale-btn' data-scale='130'>130%</button>
+                    <button class='anno-scale-btn' data-scale='140'>140%</button>
+                    <button class='anno-scale-btn' data-scale='150'>150%</button>
+                    <div></div>
+                </div>
+            </div>
         `;
     }
     dom += `
@@ -265,6 +299,11 @@ Annotate.prototype.getScaleBtn = function() {
     return this.el.querySelector('.anno-scale');
 }
 
+// 
+Annotate.prototype.getScaleBtnGroup = function() {
+    return this.el.querySelectorAll('.anno-scale-btn');
+}
+
 // 鼠标按下事件
 Annotate.prototype.down = function(event) {
     this.isOnOff = true;
@@ -299,6 +338,8 @@ Annotate.prototype.up = function(event) {
     this.currentCoordinate.endX = event.offsetX
     this.currentCoordinate.endY = event.offsetY
     const data = {
+        width: this.currentWidth,
+        height: this.currentHeight,
         startX: fnMinusNumByScale(this.currentCoordinate.startX, this.currentScale),
         startY: fnMinusNumByScale(this.currentCoordinate.startY, this.currentScale),
         endX: fnMinusNumByScale(this.currentCoordinate.endX, this.currentScale),
@@ -729,91 +770,60 @@ Annotate.prototype.changeImageScale = function(val) {
 Annotate.prototype.handleCoordinateByScale = function(val) {
     const _this = this;
     this.coordinate.forEach(function(item) {
+        const xScale = _this.currentWidth / item.width;
+        const yScale = _this.currentHeight / item.height;
+        const startX = item.startX * xScale;
+        const endX = item.endX * xScale;
+        const startY = item.startY * yScale;
+        const endY = item.endY * yScale;
         const el = _this.el.querySelectorAll('.' + item.element);
         el.forEach(function(element) {
-            // 判断是否是作者名称
-            if(element.classList.value.indexOf('annotate-box-user') > -1) {
-                // 处理批注作者名称缩放
-                if(
-                    item.optionType == RECTANGLE
-                    || item.optionType == CIRCLE
-                ) {
-                    element.style.top = (item.endY * (val / 100)) + (5 * (val / 100)) + 'px';
-                    element.style.left = item.endX * (val / 100) + 'px'
-                } else if(
-                    item.optionType == CHAR
-                ) {
-                    // 处理错误和正确图片批注作者缩放的时候
-                    element.style.top = (item.startY * (val / 100)) + (25 * (val / 100)) + 'px';  
-                    element.style.left = (item.startX * (val / 100)) + (25 * (val / 100)) + 'px';
-                } else  {
-                    element.style.top = (item.startY * (val / 100)) + (5 * (val / 100)) + 'px';
-                    element.style.left = item.endX * (val / 100) + 'px' 
-                }
-            } else {
-                element.style.width = (item.endX - item.startX) * (val / 100) + 'px';
-                element.style.top = item.startY * (val / 100) + 'px';
-                element.style.left = item.startX * (val / 100) + 'px';
-                if(
-                    item.optionType == RECTANGLE
-                    || item.optionType == CIRCLE
-                ) {
-                    element.style.height = (item.endY - item.startY) * (val / 100) + 'px'
-                } else if(
-                    item.optionType == CHAR
-                ) {
-                    element.style.width = 50 * (val / 100) + 'px'
-                    element.style.height = 50 * (val / 100) + 'px';
-                    element.style.fontSize = 40 * (val / 100) + 'px';
-                    element.style.top = item.startY - 25 > 0 ? (item.startY * (val / 100)) - (25 * (val / 100))  + 'px' : 0;
-                    element.style.left = item.startX - 25 > 0 ? (item.startX * (val / 100)) - (25 * (val / 100))  + 'px' : 0;
-                }
-                
+            element.style.width = (endX - startX) * (val / 100) + 'px';
+            element.style.top = startY * (val / 100) + 'px';
+            element.style.left = startX * (val / 100) + 'px';
+            if(
+                item.optionType == RECTANGLE
+                || item.optionType == CIRCLE
+            ) {
+                element.style.height = (endY - startY) * (val / 100) + 'px'
+            } else if(
+                item.optionType == CHAR
+            ) {
+                element.style.width = 50 * xScale * (val / 100) + 'px';
+                element.style.height = 50 * yScale * (val / 100) + 'px';
+                element.style.lineHeight = 50 * yScale * (val / 100) + 'px';
+                element.style.fontSize = 40 * xScale * (val / 100) + 'px';
+                element.style.top = startY - 25 > 0 ? (startY * (val / 100)) - (25 * yScale * (val / 100))  + 'px' : 0;
+                element.style.left = startX - 25 > 0 ? (startX * (val / 100)) - (25 * xScale * (val / 100))  + 'px' : 0;
             }
         })
     })
     this.temp_coordinate.forEach(function(item) {
+        const xScale = _this.currentWidth / item.width;
+        const yScale = _this.currentHeight / item.height;
+        const startX = item.startX * xScale;
+        const endX = item.endX * xScale;
+        const startY = item.startY * yScale;
+        const endY = item.endY * yScale;
         const el = _this.el.querySelectorAll('.' + item.element);
         el.forEach(function(element) {
-            // 判断是否是作者名称
-            if(element.classList.value.indexOf('annotate-box-user') > -1) {
-                // 处理批注作者名称缩放
-                if(
-                    item.optionType == RECTANGLE
-                    || item.optionType == CIRCLE
-                ) {
-                    element.style.top = (item.endY * (val / 100)) + (5 * (val / 100)) + 'px';
-                    element.style.left = item.endX * (val / 100) + 'px'
-                } else if(
-                    item.optionType == ERROR
-                    || item.optionType == CORRECT
-                ) {
-                    // 处理错误和正确图片批注作者缩放的时候
-                    element.style.top = (item.startY * (val / 100)) + (25 * (val / 100)) + 'px';  
-                    element.style.left = (item.startX * (val / 100)) + (25 * (val / 100)) + 'px';
-                } else  {
-                    element.style.top = (item.startY * (val / 100)) + (5 * (val / 100)) + 'px';
-                    element.style.left = item.endX * (val / 100) + 'px' 
-                }
-            } else {
-                element.style.width = (item.endX - item.startX) * (val / 100) + 'px';
-                element.style.top = item.startY * (val / 100) + 'px';
-                element.style.left = item.startX * (val / 100) + 'px';
-                if(
-                    item.optionType == RECTANGLE
-                    || item.optionType == CIRCLE
-                ) {
-                    element.style.height = (item.endY - item.startY) * (val / 100) + 'px'
-                } else if(
-                    item.optionType == CHAR
-                ) {
-                    element.style.width = 50 * (val / 100) + 'px';
-                    element.style.height = 50 * (val / 100) + 'px';
-                    element.style.fontSize = 40 * (val / 100) + 'px';
-                    element.style.top = item.startY - 25 > 0 ? (item.startY * (val / 100)) - (25 * (val / 100))  + 'px' : 0;
-                    element.style.left = item.startX - 25 > 0 ? (item.startX * (val / 100)) - (25 * (val / 100))  + 'px' : 0;
-                }
-                
+            element.style.width = (endX - startX) * (val / 100) + 'px';
+            element.style.top = startY * (val / 100) + 'px';
+            element.style.left = startX * (val / 100) + 'px';
+            if(
+                item.optionType == RECTANGLE
+                || item.optionType == CIRCLE
+            ) {
+                element.style.height = (endY - startY) * (val / 100) + 'px'
+            } else if(
+                item.optionType == CHAR
+            ) {
+                element.style.width = 50 * xScale * (val / 100) + 'px';
+                element.style.height = 50 * yScale * (val / 100) + 'px';
+                element.style.lineHeight = 50 * yScale * (val / 100) + 'px';
+                element.style.fontSize = 40 * xScale * (val / 100) + 'px';
+                element.style.top = startY - 25 > 0 ? (startY * (val / 100)) - (25 * yScale * (val / 100))  + 'px' : 0;
+                element.style.left = startX - 25 > 0 ? (startX * (val / 100)) - (25 * xScale * (val / 100))  + 'px' : 0;
             }
         })
     })
@@ -828,8 +838,9 @@ Annotate.prototype.handleDataFromDataBase = function(data) {
     let userFlagDom = '';
     let user = [];
     data.forEach(function(item) {
-        
-        const style = 'top:' + item.startY + 'px;left:' + item.startX + 'px;';
+        const xScale = _this.currentWidth / item.width;
+        const yScale = _this.currentHeight / item.height;
+        const style = 'top:' + item.startY * yScale + 'px;left:' + item.startX * xScale + 'px;';
         const el = _this.getImageBox();
         // TODO 为了分辨是哪个用户加的，后续加上用户账号或id
         // annotate-box0-user_id
@@ -847,14 +858,15 @@ Annotate.prototype.handleDataFromDataBase = function(data) {
         if(num < 0) {
             userFlagDom += _this.createAnnotateUserFlag(options.color, item.user);
         }
+        
         const dom = _this.createAnnotateBox(
             options, 
             item.optionType, 
             className, 
             style, 
             item.user,
-            item.startX,
-            item.startY,
+            item.startX * xScale,
+            item.startY * yScale,
             item.data
         );
         el.appendChild(dom);
@@ -862,10 +874,10 @@ Annotate.prototype.handleDataFromDataBase = function(data) {
         _this.handleAnnotateBoxStyle(
             box,
             item.optionType,
-            item.startX,
-            item.startY,
-            item.endX,
-            item.endY
+            item.startX * xScale,
+            item.startY * yScale,
+            item.endX * xScale,
+            item.endY * yScale
         )
         // const userDom = _this.createAnnotateUser(
         //     item.optionType,
