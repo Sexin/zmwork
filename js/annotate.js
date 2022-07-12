@@ -852,8 +852,10 @@ Annotate.prototype.handleDataFromDataBase = function(data) {
             user.push(item.user);
             temp ++;
         }
-        if(item.color != '') {
+        if(!item.color) {
             options.color = temp < 5 ? COLORS[temp] : ranColor();
+        } else {
+            options.color = item.color;
         }
         if(num < 0) {
             userFlagDom += _this.createAnnotateUserFlag(options.color, item.user);
