@@ -34,9 +34,32 @@
     <script>
         $(function() {
         })
-        
+        let my_note_data = [];
         function fnClick(obj) {
-            const path = $(obj).data('src');
+            const path = $(".origin img").attr('src');
+            let imageWidth = $(".origin img").get(0).naturalWidth;
+            let imageHeight = $(".origin img").get(0).naturalHeight;
+
+            let mydata2 = [];
+            for (let i = 0; i < my_note_data.length; i++)
+            {
+                mydata2.push({
+                    "optionType": my_note_data[i].optionType,
+                    "data"      : my_note_data[i].data,
+                    "startX"    : my_note_data[i].startX,
+                    "startY"    : my_note_data[i].startY,
+                    "endX"      : my_note_data[i].endX,
+                    "endY"      : my_note_data[i].endY,
+                    "width"     : my_note_data[i].width,
+                    "height"    : my_note_data[i].height,
+                    "color"     : my_note_data[i].color,
+                    "user"      : my_note_data[i].user, // 记住用户
+                    // 测试不同用户的颜色
+                    // "user"      : Math.round(Math.random(0, 1) * 10),
+                    "element"   : my_note_data[i].element
+                });
+            }
+
             /**
              * 创建一个批注则使用下列方式
              * 保存方法目前还没有实现
@@ -46,14 +69,17 @@
             const an = new Annotate({
                 el: '#annotate', // 渲染节点
                 imgOrigin: path, // 图片地址
+                imgNaturalWidth: imageWidth,    // 图片原始宽度
+                imgNaturalHeight: imageHeight,  // 图片原始高度
                 user: 'renxin', // 用户
+                color: 'green', // 可以由外部指定颜色
                 type: 1, // 模式 1 编辑 2 查看
                 isShowUser: true, // 初始化时是否显示过往批注数据
+                myData: mydata2,
                 data: [
                     {
                         width: 886,
                         height: 764,
-                        color: "red",
                         data: "0",
                         element: "annotate-box0",
                         endX: 538,
@@ -61,7 +87,7 @@
                         optionType: "char",
                         startX: 538,
                         startY: 142,
-                        user: "renxin"
+                        user: "renxin",
                     },
                     {
                         width: 886,
@@ -72,12 +98,13 @@
                         endY: 149, // 结束坐标Y
                         element: 'annotate-box1', // 节点class_name 
                         optionType: 'rectangle', // 批注操作类型
-                        color: 'green', // 颜色，暂时无效
                         user: 'admin', // 用户
-                        data: '' // 批注操作类型为CHAR时有效
+                        data: '', // 批注操作类型为CHAR时有效
                     }
                 ]
-            })
+            }, function(mydata){
+                my_note_data = mydata;
+            });
             an.init();
         }
 

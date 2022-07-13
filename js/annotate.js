@@ -20,21 +20,23 @@ const ERROR = 'error';
 const CORRECT = 'correct';
 // 数字和错误正确 number and error correct
 const CHAR = 'char';
-// 颜色池
-const COLORS = ['', 'green', 'orange', 'purple', 'blue', 'pink', 'pink'];
 
-const Annotate = function(options) {
+const Annotate = function(options, fnSave) {
     this.type = options.type // 1 编辑 2 查看
     this.isShowUser = options.isShowUser // 是否展示用户的批注
     this.user = options.user ? options.user : 'admin';
     this.el = document.querySelector(options.el);
     this.el.style.display = 'flex';
     this.imgOrigin = options.imgOrigin; // 目标源图像地址
+    this.imgNaturalWidth = options.imgNaturalWidth;
+    this.imgNaturalHeight = options.imgNaturalHeight;
     this.coordinate = []; // 记录坐标
     this.temp_coordinate = []; // 记录临时坐标
     this.optionType = HORIZONTALLINE; // 水平线
     this.currentWidth = 0;
     this.currentHeight = 0;
+    this.fnSave = fnSave;
+
     // 画图样式
     this.optionStyle = {
         width: '1px',
@@ -56,8 +58,10 @@ const Annotate = function(options) {
     this.charVal = '';
     // 当前用户
     this.users = {};
-    // 当前数据
+    // 当前数据(别人的数据)
     this.initData = options.data && options.data.length > 0 ? options.data : [];
+    // 当前我的数据
+    this.myData = options.myData && options.myData.length > 0 ? options.myData : [];
     /**
      * canvas 相关
      */
@@ -69,21 +73,29 @@ const Annotate = function(options) {
     this.isOnOff = false; // 是否在画画
     // this.oldX = null; // 上一次旧坐标的X点
     // this.oldY = null; // 上一次就坐标的Y点
+
+    // 颜色集合
+    this.colors = ['green', 'orange', 'purple', 'blue', 'pink'];
 }
 
 // 初始化
 Annotate.prototype.init = function() {
     const dom = this.createDom(this.imgOrigin, this.type);
     this.compileDom(dom);
+
     // 设置画布的宽和高
+    const imghw = this.getImageWidthAndHeight();
+    this.el.querySelector('.anno-image img').style.width = imghw.width + 'px';
+    this.el.querySelector('.anno-image img').style.height = imghw.height + 'px';
     this.setCanvasWidthAndHeight();
+
     // this.ctx = canvas.getContext('2d');
     const _this = this;
     // 添加画布 画布只是用来划定范围和操作，并不会使用canvas
     const canvas = this.getCanvas();
-    const canvasWH = this.getCanvasWidthAndHeight();
-    this.currentWidth = canvasWH.width;
-    this.currentHeight = canvasWH.height;
+    this.currentWidth = canvas.width;
+    this.currentHeight = canvas.height;
+
     if(this.type == 1) {
         canvas.addEventListener('mousemove', this.draw.bind(this), false);
         canvas.addEventListener('mousedown', this.down.bind(this), true);
@@ -129,7 +141,11 @@ Annotate.prototype.init = function() {
                 })
             }
         })
-    
+        /** 
+         * 
+         * 目前缩放功能暂时关闭掉
+         * 
+         * 
         // 获取缩放按钮
         const scaleBtn = this.getScaleBtn();
         scaleBtn.addEventListener('click', function() {
@@ -160,10 +176,20 @@ Annotate.prototype.init = function() {
                 _this.setCanvasWidthAndHeight();
             })
         })
+        */
+
+        // 点击取消按钮关闭批注
+        const cancelBtn = this.getCancelBtn();
+        cancelBtn.addEventListener('click', function(){
+                _this.clear();
+            });
     }
 
     // 若数据库有值，先初始化值
     this.handleDataFromDataBase(this.initData);
+    this.handleMyDataFromDataBase(this.myData);
+    // 往当前用户区域填写用户使用颜色
+    // this.fnFillColorForCurrentUser(this.optionStyle.color);
 }
 
 // 创建dom
@@ -180,6 +206,12 @@ Annotate.prototype.createDom = function(path, type) {
     `;
     if(type == 1) {
         dom += `
+            <div class='anno-current-user'>
+                <div class='anno-current-user-name'>当前用户：</div>
+                <div class='anno-user-flag'>
+                    <div>${this.user}</div>
+                </div>
+            </div>
             <button class='anno-optiontype anno-active' data-optiontype='${HORIZONTALLINE}'>横线</button>
             <button class='anno-optiontype' data-optiontype='${RECTANGLE}'>矩形</button>
             <button class='anno-optiontype' data-optiontype='${CIRCLE}'>圆形</button>
@@ -196,8 +228,9 @@ Annotate.prototype.createDom = function(path, type) {
             <button class='anno-optiontype' data-optiontype='${CHAR}' data-number='&#10003'>√</button>
             <button class='anno-optiontype' data-optiontype='${CHAR}' data-number='&#10005'>×</button>
             <button class='anno-revoke'>撤销</button>
-            <button class='anno-scale'>缩放</button>
+            <!-- <button class='anno-scale'>缩放</button> -->
             <button class='anno-save'>保存</button>
+            <button class='anno-cancel'>取消</button>
             <div class='anno-scale-btngroup anno-hide'>
                 <div class='anno-scale-btn-box'>
                     <button class='anno-scale-btn' data-scale='50'>50%</button>
@@ -217,12 +250,13 @@ Annotate.prototype.createDom = function(path, type) {
         `;
     }
     dom += `
+        <div class='anno-users-title anno-hide'>其他用户标注:</div>
         <div class='anno-users'>
             <div class='anno-user-box'>
                 <div class='anno-user-flag'>
                     <div></div>
                 </div>
-                <div class='anno-user-name'>张三</div>
+                <div class='anno-user-name'></div>
             </div>
         </div>
     `;
@@ -239,6 +273,7 @@ Annotate.prototype.compileDom = function(dom) {
 Annotate.prototype.getCanvasWidthAndHeight = function() {
     const width = this.el.querySelector('.anno-image').offsetWidth;
     const height = this.el.querySelector('.anno-image').offsetHeight;
+
     return {
         width: width,
         height: height
@@ -249,15 +284,26 @@ Annotate.prototype.getCanvasWidthAndHeight = function() {
 Annotate.prototype.setCanvasWidthAndHeight = function() {
     const canwh = this.getImageWidthAndHeight();
     const canvas = this.getCanvas();
-    canvas.width = canwh.width;
-    canvas.height = canwh.height;
+    canvas.width = canwh.width - 2;
+    canvas.height = canwh.height - 2;
 }
 
 
 // 获取图片的宽度与高度
 Annotate.prototype.getImageWidthAndHeight = function() {
-    const width = this.el.querySelector('.anno-image img').offsetWidth;
-    const height = this.el.querySelector('.anno-image img').offsetHeight;
+    let width = this.el.querySelector('.anno-image').offsetWidth;
+    let height = 0;
+
+    if (width < this.imgNaturalWidth)
+    {
+        height = this.imgNaturalHeight * width / this.imgNaturalWidth;
+    }
+    else
+    {
+        width = this.imgNaturalWidth;
+        height = this.imgNaturalHeight
+    }
+
     return {
         width: width,
         height: height
@@ -297,6 +343,11 @@ Annotate.prototype.getRevokeBtn = function() {
 // 获取缩放按钮
 Annotate.prototype.getScaleBtn = function() {
     return this.el.querySelector('.anno-scale');
+}
+
+// 获取取消按钮
+Annotate.prototype.getCancelBtn = function(){
+    return this.el.querySelector('.anno-cancel');
 }
 
 // 
@@ -346,8 +397,8 @@ Annotate.prototype.up = function(event) {
         endY: fnMinusNumByScale(this.currentCoordinate.endY, this.currentScale),
         optionType: this.optionType,
         element: this.currentAnnotateBox.dataset.className,
-        user: this.user,
-        color: this.optionStyle.color,
+        user: this.user, // 记住操作用户
+        color: this.optionStyle.color, // 记住操作用户所用的颜色
         data: this.optionType == CHAR ? this.charVal : ""
     }
     // 给批注标明作者
@@ -725,11 +776,34 @@ Annotate.prototype.createAnnotateUserBox = function(
 
 // 保存
 Annotate.prototype.save = function() {
-    let temp = [];
-    temp = this.coordinate.concat(...this.temp_coordinate)
-    // 将temp数据传到后台
-    console.log(temp);
+    let mydata = this.temp_coordinate
+
+
+    const canvas = this.getCanvas();
+    const scale = this.imgNaturalWidth / canvas.width;
+
+    // 进行数据转换
+    let mydata2 = [];
+    for (let i = 0; i < mydata.length; i++)
+    {
+        mydata2.push({
+            "optionType": mydata[i].optionType,
+            "data"      : mydata[i].data,
+            "startX"    : Math.round(mydata[i].startX * scale),
+            "startY"    : Math.round(mydata[i].startY * scale),
+            "endX"      : Math.round(mydata[i].endX * scale),
+            "endY"      : Math.round(mydata[i].endY * scale),
+            "width"     : this.imgNaturalWidth,
+            "height"    : this.imgNaturalHeight,
+            "element"   : mydata[i].element,
+            "color"     : mydata[i].color,
+            "user"      : mydata[i].user
+        });
+    }
+
+    // mydata2 = mydata2.concat(...this.coordinate);
     this.clear();
+    this.fnSave(mydata2);
 }
 
 // 销毁目标
@@ -836,31 +910,29 @@ Annotate.prototype.handleDataFromDataBase = function(data) {
     const _this = this;
     let temp = 0;
     let userFlagDom = '';
-    let user = [];
+    let user = {};
     data.forEach(function(item) {
         const xScale = _this.currentWidth / item.width;
         const yScale = _this.currentHeight / item.height;
-        const style = 'top:' + item.startY * yScale + 'px;left:' + item.startX * xScale + 'px;';
+        const style = 'top:' + item.startY * xScale + 'px;left:' + item.startX * xScale + 'px;';
         const el = _this.getImageBox();
         // TODO 为了分辨是哪个用户加的，后续加上用户账号或id
         // annotate-box0-user_id
         const className = item.element;
         // 处理颜色
         const options = JSON.parse(JSON.stringify(_this.optionStyle));
-        let num = user.indexOf(item.user);
-        if(num < 0) {
-            user.push(item.user);
-            temp ++;
+        const color = user[item.user];
+        if(!color) {
+            // 若当前记录有传入颜色则使用传入的颜色，否则使用颜色池的里的颜色
+            user[item.user] = item.color ? item.color : _this.colors.length > 0 ? _this.colors[0] : ranColor();
+            if(!item.color) {
+                _this.colors.shift();
+            }
+            userFlagDom += _this.createAnnotateUserFlag(user[item.user], item.user);
         }
-        if(!item.color) {
-            options.color = temp < 5 ? COLORS[temp] : ranColor();
-        } else {
-            options.color = item.color;
-        }
-        if(num < 0) {
-            userFlagDom += _this.createAnnotateUserFlag(options.color, item.user);
-        }
-        
+
+        options.color = user[item.user];
+
         const dom = _this.createAnnotateBox(
             options, 
             item.optionType, 
@@ -868,7 +940,7 @@ Annotate.prototype.handleDataFromDataBase = function(data) {
             style, 
             item.user,
             item.startX * xScale,
-            item.startY * yScale,
+            item.startY * xScale,
             item.data
         );
         el.appendChild(dom);
@@ -877,9 +949,9 @@ Annotate.prototype.handleDataFromDataBase = function(data) {
             box,
             item.optionType,
             item.startX * xScale,
-            item.startY * yScale,
+            item.startY * xScale,
             item.endX * xScale,
-            item.endY * yScale
+            item.endY * xScale
         )
         // const userDom = _this.createAnnotateUser(
         //     item.optionType,
@@ -894,6 +966,13 @@ Annotate.prototype.handleDataFromDataBase = function(data) {
         // );
         // el.appendChild(userDom);
     })
+    // 判断当前用户的颜色
+    if(!_this.optionStyle.color) {
+        _this.optionStyle.color = COLORS.length > 0 ? COLORS[0] : ranColor();
+    }
+    if(userFlagDom) {
+        _this.el.querySelector('.anno-users-title').classList.remove('anno-hide')
+    }
     _this.el.querySelector('.anno-users').innerHTML = userFlagDom;
     _this.el.querySelectorAll('.anno-user-box').forEach(function(item) {
         item.addEventListener('click', function() {
@@ -917,6 +996,57 @@ Annotate.prototype.handleDataFromDataBase = function(data) {
     }
 }
 
+// 处理从数据库获取的数据
+Annotate.prototype.handleMyDataFromDataBase = function(data) {
+    // 赋值
+    this.temp_coordinate = data;
+    const _this = this;
+    data.forEach(function(item) {
+        const xScale = _this.currentWidth / item.width;
+        const yScale = _this.currentHeight / item.height;
+        const style = 'top:' + item.startY * xScale + 'px;left:' + item.startX * xScale + 'px;';
+        const el = _this.getImageBox();
+        // TODO 为了分辨是哪个用户加的，后续加上用户账号或id
+        // annotate-box0-user_id
+        const className = item.element;
+        // 处理颜色
+        const options = JSON.parse(JSON.stringify(_this.optionStyle));
+        
+        const dom = _this.createAnnotateBox(
+            options, 
+            item.optionType, 
+            className, 
+            style, 
+            item.user,
+            item.startX * xScale,
+            item.startY * xScale,
+            item.data
+        );
+        el.appendChild(dom);
+        const box = el.querySelector('.' + className)
+        _this.handleAnnotateBoxStyle(
+            box,
+            item.optionType,
+            item.startX * xScale,
+            item.startY * xScale,
+            item.endX * xScale,
+            item.endY * xScale
+        )
+        // const userDom = _this.createAnnotateUser(
+        //     item.optionType,
+        //     item.user,
+        //     className,
+        //     options.color,
+        //     item.startX,
+        //     item.startY,
+        //     item.endX,
+        //     item.endY,
+        //     item.data ? item.data : ''
+        // );
+        // el.appendChild(userDom);
+    })
+}
+
 // 生成右侧作者的标识
 Annotate.prototype.createAnnotateUserFlag = function(
     color,
@@ -932,6 +1062,13 @@ Annotate.prototype.createAnnotateUserFlag = function(
         </div>
     `;
     return dom;
+}
+
+// 
+Annotate.prototype.fnFillColorForCurrentUser = function(
+    color = 'red'
+) {
+    this.el.querySelector('.anno-current-user .anno-user-flag div').style.backgroundColor = color;
 }
 
 // 减去缩放的数值
