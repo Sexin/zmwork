@@ -79,13 +79,22 @@
     justify-content: space-between;
     overflow: auto;
 }
+#annotate .anno-options .anno-option-fn {
+    width: 100%;
+}
+#annotate .anno-options .anno-option-fn button {
+    width: 100%;
+}
 #annotate .anno-options button {
     border: 0px;
     font-size: 18px;
     margin: 5px 0;
     width: 49%;
     height: 30px;
-    color: #303133;
+    color: rgba(64, 158, 255, 1);
+}
+#annotate .anno-options button.anno-btn-danger {
+    color: #F56C6C;
 }
 #annotate .anno-options button.anno-active {
     background-color: rgba(64, 158, 255, 1);
@@ -95,6 +104,9 @@
     cursor: pointer;
     background-color: rgba(64, 158, 255, 1);
     color: #fff;
+}
+#annotate .anno-options button.anno-btn-danger:hover {
+    background-color: #F56C6C;
 }
 #annotate .anno-options .anno-users-title {
     font-size: 18px;
