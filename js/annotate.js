@@ -286,8 +286,8 @@ Annotate.prototype.getCanvasWidthAndHeight = function() {
 Annotate.prototype.setCanvasWidthAndHeight = function() {
     const canwh = this.getImageWidthAndHeight();
     const canvas = this.getCanvas();
-    canvas.width = canwh.width - 2;
-    canvas.height = canwh.height - 2;
+    canvas.width = canwh.width - 2; // 设置了边框 需要减去左右两个像素的距离
+    canvas.height = canwh.height - 2; // 设置了边框 需要减去上下两个像素的距离
 }
 
 
