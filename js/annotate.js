@@ -229,9 +229,11 @@ Annotate.prototype.createDom = function(path, type) {
             <button class='anno-optiontype' data-optiontype='${CHAR}' data-number='&#10005'>×</button>
             <div class='anno-option-fn'>
                 <button class='anno-revoke anno-btn-danger'>撤销</button>
-                <button class='anno-save'>保存</button>
-                <button class='anno-cancel anno-btn-danger'>取消</button>
             </div>
+            <div class='anno-option-save'>
+                <button class='anno-save anno-btn-primary'>保存</button>
+                <button class='anno-cancel anno-btn-danger'>取消</button>
+            </div>    
             <!-- <button class='anno-scale'>缩放</button> -->
             <div class='anno-scale-btngroup anno-hide'>
                 <div class='anno-scale-btn-box'>
@@ -1060,7 +1062,7 @@ Annotate.prototype.createAnnotateUserFlag = function(
             <div class='anno-user-flag'>
                 <div style='background-color: ${color}'></div>
             </div>
-            <div class='anno-user-name'>${name}</div>
+            <div class='anno-user-name'>&nbsp;&nbsp;${name}</div>
         </div>
     `;
     return dom;
